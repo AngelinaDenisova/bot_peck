@@ -1,17 +1,10 @@
-# Импортируйте класс Bot из telegram
-
-# Здесь возьмите токен, 
-# который вы получили от @Botfather
-# при создании бот-аккаунта
-# и создайте с ним экземпляр класса Bot
-bot = ...
-
-# Укажите id своего аккаунта в Telegram
-# Узнать его можно при помощи @userinfobot
-chat_id = ...
-
-# Укажите любой текст сообщения
-text = 'Вам телеграмма!'
-
-
-# Отправьте сообщение text получателю chat_id
+def get_menu():
+    response = requests.get(menu_url)
+    response_json = response.json()
+    names = []
+    for position in response_json['positions']:
+        names.append(position['name'])
+    menu_prefix = 'Сегодня в меню: '
+    menu_names = ', '.join(names)
+    menu = menu_prefix + menu_names
+    return menu
