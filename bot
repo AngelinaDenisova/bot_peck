@@ -1,3 +1,13 @@
+import requests
+from telegram import ReplyKeyboardMarkup
+from telegram.ext import CommandHandler, Updater, MessageHandler, Filters
+
+
+kitchen_chat_id = ""
+updater = Updater(token="7763383596:AAEK4F9qN4CDdjhVC3Zpq57q41er8LNKeZ4")
+menu_url = 'https://practicumgrade.github.io/course-material/bakery-menu.json'
+
+
 def get_menu():
     response = requests.get(menu_url)
     response_json = response.json()
@@ -8,3 +18,8 @@ def get_menu():
     menu_names = ', '.join(names)
     menu = menu_prefix + menu_names
     return menu
+
+
+def show_menu(update, context):
+    chat = update.effective_chat
+    context.bot.send_message(chat.id, get_menu())
