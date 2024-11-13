@@ -1,69 +1,131 @@
 import requests
 import datetime
+!pip install nest_asyncio
+import asyncio
+import nest_asyncio
+!pip install python-telegram-bot 
 from telegram import ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import CommandHandler, Updater, MessageHandler, Filters, ConversationHandler
+from telegram.ext import CommandHandler, Application, MessageHandler, filters, ConversationHandler
 
-
+nest_asyncio.apply()
 kitchen_chat_id = ""
-updater = Updater(token="7763383596:AAEK4F9qN4CDdjhVC3Zpq57q41er8LNKeZ4")
+updater = application = Application.builder().token("7763383596:AAEK4F9qN4CDdjhVC3Zpq57q41er8LNKeZ4").build()
 menu_url = 'https://practicumgrade.github.io/course-material/bakery-menu.json'
+PREORDER, CATEGORY, ADD_TO_CART = range(3)
 
-
-def get_menu():
+# Получить меню с категориями
+async def get_menu():
     response = requests.get(menu_url)
     response_json = response.json()
-    names = []
-    for position in response_json['positions']:
-        names.append(position['name'])
+    names = [position['name'] for position in response_json['positions']]
     menu_prefix = 'Сегодня в меню: '
     menu_names = ', '.join(names)
-    menu = menu_prefix + menu_names
-    return menu
+    return menu_prefix + menu_names
 
+# Отображение меню с интерактивными кнопками
+async def show_menu(update, context):
+    chat = update.effective_chat
+    menu = await get_menu()
+    
+    # Создаем кнопки для перехода к категориям
+    buttons = [
+        [KeyboardButton('Хлеб'), KeyboardButton('Булочки')],
+        [KeyboardButton('Кондитерские изделия')]
+    ]
+    reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+    
+    # Отправляем сообщение с меню и кнопками
+    await context.bot.send_message(chat.id, menu, reply_markup=reply_markup)
 
-def show_menu(update, context):
+async def process_order(update, context):
     chat = update.effective_chat
-    context.bot.send_message(chat.id, get_menu())
-def process_order(update, context):
-    chat = update.effective_chat
+    if not chat.id:  # Проверяем, что chat.id не пустой
+        print("Ошибка: chat.id пустой!")
+        return
+
     if update.message.text.startswith('Закажи'):
         order_message_prefix = 'Новый заказ: '
-        context.bot.send_message(
+        await context.bot.send_message(
             chat_id=kitchen_chat_id,
             text=order_message_prefix + update.message.text,
         )
-        context.bot.send_message(
-            chat_id=chat.id,
-            text='Передали сообщение на кухню, приходите завтра за заказом в любое время!'
+
+        await context.bot.send_message(chat.id, 
+            'Передали сообщение на кухню, приходите завтра за заказом в любое время!'
         )
+        
+        # Спрашиваем, хочет ли он что-то еще
+        await context.bot.send_message(chat.id, "Хотите что-нибудь еще? (Да/Нет)")
+        return ADD_TO_CART
     else:
-        context.bot.send_message(
+        await context.bot.send_message(
             chat_id=chat.id,
             text='Начните сообщение с «Закажи», чтобы передать заказ на кухню.'
         )
 
+# Обработка выбора категории
+async def select_category(update, context):
+    category = update.message.text
+    await context.bot.send_message(update.effective_chat.id, f"Вы выбрали категорию: {category}.")
+    await context.bot.send_message(update.effective_chat.id, "Итак, что вы хотите заказать?")
+    
+    return ConversationHandler.END
 
-def wake_up(update, context):
+# Информация о пекарне
+async def bakery_info(update, context):
+    info = "Пекарня: 'Лучшие булочки'\nАдрес: ул. Пекарская, 1\nРежим работы: 8:00 - 20:00\nКонтакт: +7 (123) 456-78-90"
+    await context.bot.send_message(update.effective_chat.id, info)
+
+# Кнопка с акциями
+async def show_promotions(update, context):
+    promotions = "Сегодня: Скидка 10% на все хлеба!"
+    await context.bot.send_message(update.effective_chat.id, promotions)
+
+# Обработка корзины
+async def add_to_cart(update, context):
+    if update.message.text.lower() == "да":
+        await context.bot.send_message(update.effective_chat.id, "Добавьте товар в корзину, начиная сообщение с 'Закажи'.")    
+    else:
+        await context.bot.send_message(update.effective_chat.id, "Спасибо за заказ!")
+    return ConversationHandler.END
+
+# Создаем ConversationHandler для обработки разговоров
+async def wake_up(update, context):
     chat = update.effective_chat
     name = update.message.chat.first_name
     button = ReplyKeyboardMarkup([['/menu']], resize_keyboard=True)
 
-    context.bot.send_message(
+    await context.bot.send_message(
         chat_id=chat.id,
-        text='Добро пожаловать, {}.'.format(name),
+        text=f'Добро пожаловать, {name}.',
         reply_markup=button
     )
+    menu = await get_menu()
+    await context.bot.send_message(chat.id, menu)
 
-    context.bot.send_message(chat.id, get_menu())
-    context.bot.send_message(
-        chat_id=chat.id,
-        text='Начните сообщение с «Закажи», чтобы передать заказ на кухню.'
-    )
+# Создаем обработчики разговоров
+conv_handler = ConversationHandler(
+    entry_points=[MessageHandler(filters.Regex('^Добавить товар$'), add_to_cart)],
+    states={
+        ADD_TO_CART: [
+            MessageHandler(filters.TEXT & filters.Regex("Да"), add_to_cart),
+            MessageHandler(filters.TEXT & filters.Regex("Нет"), add_to_cart)
+        ],
+        CATEGORY: [
+            MessageHandler(filters.TEXT, select_category)
+        ]
+    },
+    fallbacks=[CommandHandler('start', wake_up)]
+)
 
+# Главная асинхронная функция
+async def main():
+    application.add_handler(CommandHandler('start', wake_up))
+    application.add_handler(CommandHandler('menu', show_menu))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_order))
+    application.add_handler(CommandHandler('bakery_info', bakery_info))
+    application.add_handler(CommandHandler('promotions', show_promotions))
+    application.add_handler(conv_handler)
+    await application.run_polling()
 
-updater.dispatcher.add_handler(CommandHandler('start', wake_up))
-updater.dispatcher.add_handler(CommandHandler('menu', show_menu))
-updater.dispatcher.add_handler(MessageHandler(Filters.text, process_order))
-
-updater.start_polling()
-updater.idle()
+asyncio.run(main())
