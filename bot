@@ -4,12 +4,12 @@ import datetime
 import asyncio
 import nest_asyncio
 !pip install python-telegram-bot 
-from telegram import ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import CommandHandler, Application, MessageHandler, filters, ConversationHandler
+from telegram import ReplyKeyboardMarkup, KeyboardButton, Update
+from telegram.ext import CommandHandler, Application, MessageHandler, filters, ConversationHandler, CallbackContext
 
 nest_asyncio.apply()
 kitchen_chat_id = ""
-updater = application = Application.builder().token("7763383596:AAEK4F9qN4CDdjhVC3Zpq57q41er8LNKeZ4").build()
+updater = application = Application.builder().token("7738234222:AAHj8fSK0k43C4BuWDnzVMJFBCLPKC-2GFQ").build()
 menu_url = 'https://practicumgrade.github.io/course-material/bakery-menu.json'
 PREORDER, CATEGORY, ADD_TO_CART = range(3)
 
@@ -22,79 +22,292 @@ async def get_menu():
     menu_names = ', '.join(names)
     return menu_prefix + menu_names
 
-# Отображение меню с интерактивными кнопками
-async def show_menu(update, context):
+# Отображение основного меню с интерактивными кнопками
+async def show_menu(update: Update, context: CallbackContext):
     chat = update.effective_chat
-    menu = await get_menu()
-    
-    # Создаем кнопки для перехода к категориям
     buttons = [
-        [KeyboardButton('Хлеб'), KeyboardButton('Булочки')],
-        [KeyboardButton('Кондитерские изделия')]
+        [KeyboardButton('Хлеб'), KeyboardButton('Пирожки')],
+        [KeyboardButton('Торты'), KeyboardButton('Булочки')],
+        [KeyboardButton('Информация о пекарне'), KeyboardButton('Скидки')]
     ]
     reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
-    
-    # Отправляем сообщение с меню и кнопками
-    await context.bot.send_message(chat.id, menu, reply_markup=reply_markup)
+    await context.bot.send_message(chat.id, "Выберите категорию:", reply_markup=reply_markup)
+    return CATEGORY
 
-async def process_order(update, context):
-    chat = update.effective_chat
-    if not chat.id:  # Проверяем, что chat.id не пустой
-        print("Ошибка: chat.id пустой!")
-        return
-
-    if update.message.text.startswith('Закажи'):
-        order_message_prefix = 'Новый заказ: '
-        await context.bot.send_message(
-            chat_id=kitchen_chat_id,
-            text=order_message_prefix + update.message.text,
-        )
-
-        await context.bot.send_message(chat.id, 
-            'Передали сообщение на кухню, приходите завтра за заказом в любое время!'
-        )
-        
-        # Спрашиваем, хочет ли он что-то еще
-        await context.bot.send_message(chat.id, "Хотите что-нибудь еще? (Да/Нет)")
-        return ADD_TO_CART
-    else:
-        await context.bot.send_message(
-            chat_id=chat.id,
-            text='Начните сообщение с «Закажи», чтобы передать заказ на кухню.'
-        )
 
 # Обработка выбора категории
-async def select_category(update, context):
+async def select_category(update: Update, context: CallbackContext):
     category = update.message.text
-    await context.bot.send_message(update.effective_chat.id, f"Вы выбрали категорию: {category}.")
-    await context.bot.send_message(update.effective_chat.id, "Итак, что вы хотите заказать?")
-    
-    return ConversationHandler.END
+    context.user_data['category'] = category # Сохраняем категорию в user_data
+
+    if category == "Хлеб":
+        buttons = [
+            [KeyboardButton('Парижский багет'), KeyboardButton('Кукурузный батон')],
+            [KeyboardButton('Чиабатта')]
+        ]
+    elif category == "Пирожки":
+        buttons = [
+            [KeyboardButton('Лук-яйцо'), KeyboardButton('Картошка')],
+            [KeyboardButton('Капуста'), KeyboardButton('Мясо')]
+        ]
+    elif category == "Торты":
+        buttons = [
+            [KeyboardButton('Морковный'), KeyboardButton('Брауни')],
+            [KeyboardButton('Наполеон'), KeyboardButton('Красный бархат')]
+        ]
+    elif category == "Булочки":
+        buttons = [
+            [KeyboardButton('Круассан с шоколадом'), KeyboardButton('Булочка с корицей')]
+        ]
+    else: #Обработка случаев когда нажата кнопка "Информация о пекарне" или "Скидки"
+        if category == "Информация о пекарне":
+            await bakery_info(update, context)
+        elif category == "Скидки":
+            await show_promotions(update, context)
+        return ConversationHandler.END
+
+    reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
+    await context.bot.send_message(update.effective_chat.id, f"Вы выбрали категорию: {category}.", reply_markup=reply_markup)
+    await context.bot.send_message(update.effective_chat.id, "Какой именно продукт вы хотите заказать?")
+    return ADD_TO_CART
+
 
 # Информация о пекарне
-async def bakery_info(update, context):
+async def bakery_info(update: Update, context: CallbackContext):
     info = "Пекарня: 'Лучшие булочки'\nАдрес: ул. Пекарская, 1\nРежим работы: 8:00 - 20:00\nКонтакт: +7 (123) 456-78-90"
     await context.bot.send_message(update.effective_chat.id, info)
+    return ConversationHandler.END
+
 
 # Кнопка с акциями
-async def show_promotions(update, context):
+async def show_promotions(update: Update, context: CallbackContext):
     promotions = "Сегодня: Скидка 10% на все хлеба!"
     await context.bot.send_message(update.effective_chat.id, promotions)
+    return ConversationHandler.END
 
-# Обработка корзины
-async def add_to_cart(update, context):
+
+#Описание Парижского багета
+async def parisian_baguette_description(update: Update, context: CallbackContext):
+    text = """Наш багет станет прекрасным дополнением к любому блюду или наслаждением само по себе. Идеально подходит для завтрака, обеда или в качестве закуски. Окуните его в любимый соус, насладитесь с ломтиком сыра или свежими фруктами.
+Примерное КБЖУ на 100 г:
+
+Калории: 265
+Белки: 8 г
+Жиры: 1 г
+Углеводы: 53 г"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def baton(update: Update, context: CallbackContext):
+    text = """Каждый кусочек нашего кукурузного батона - это кусочек солнечного лета. Мягкий мякиш, хрустящая корочка и легкий сладковатый привкус кукурузы создадут незабываемое впечатление. Идеально подходит для завтрака, обеда или в качестве угощения для всей семьи.
+Примерное КБЖУ на 100 г:
+
+Калории: 280
+Белки: 7 г
+Жиры: 5 г
+Углеводы: 55 г
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def chib(update: Update, context: CallbackContext):
+    text = """Каждый кусочек нашей Чиабатты - это кусочек Италии. Ее можно подавать как самостоятельный продукт, так и использовать для приготовления вкуснейших бутербродов, панини и брускетт. Наша Чиабатта станет идеальным дополнением к любому блюду и подарит вам истинное гастрономическое наслаждение.
+Примерное КБЖУ на 100 г:
+
+Калории: 260
+Белки: 9 г
+Жиры: 4 г
+Углеводы: 49 г
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def luk_egg(update: Update, context: CallbackContext):
+    text = """Хрустящая золотистая корочка с нежнейшей начинкой, в которой сочный и ароматный лук гармонично сочетается с яйцом. Каждый укус тает во рту, идеален для обеденного перекуса
+Примерное КБЖУ (на 1 пирожок):
+
+Калории: 250-300 ккал
+Белки: 10-12 г
+Жиры: 12-15 г
+Углеводы: 35-40 г
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def potatoes(update: Update, context: CallbackContext):
+    text = """Нежный, домашний пирожок, до краев наполненный картошечкой с нотками лука и пряностей. Каждый укус — это как побывать у бабушки
+Примерное КБЖУ:
+
+Калорийность: 300 ккал
+Белки: 10 г
+Жиры: 15 г
+Углеводы: 35 г
+
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def kapusta(update: Update, context: CallbackContext):
+    text = """Представляем вам наш классический пирожок с капустой, приготовленный из отборных продуктов и испеченный с любовью. Пышное тесто замешивается на основе муки, дрожжей, молока и сливочного масла. Сочная начинка щедро заполнена тушеной капустой, предварительно обжаренной с луком и морковью.
+Примерное КБЖУ на 100 г:
+
+Калории: 260
+Белки: 7 г
+Жиры: 12 г
+Углеводы: 38 г
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def meet(update: Update, context: CallbackContext):
+    text = """Представляем вам наш классический пирожок с мясом, приготовленный из отборных продуктов и испеченный с любовью. Пышное дрожжевое тесто замешивается на основе муки, дрожжей, молока и сливочного масла. Сочная мясная начинка готовится из рубленого мяса, обжаренного с луком и приправленного специями.
+Примерное КБЖУ на 100 г:
+
+Калории: 280
+Белки: 10 г
+Жиры: 15 г
+Углеводы: 35 г
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def kr_b(update: Update, context: CallbackContext):
+    text = """Представляем вам наш фирменный торт "Красный Бархат". В его основе - нежнейшие коржи, окрашенные натуральным свекольным соком. Интенсивный красный цвет и тонкий шоколадный оттенок придадут торту неповторимый шарм. А нежнейший крем на основе сливочного сыра и взбитых сливок покорит вас своей воздушной текстурой и сливочно-ванильным вкусом.
+Примерное КБЖУ на 100 г:
+
+Калории: 350
+Белки: 6 г
+Жиры: 20 г
+Углеводы: 40 г
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def brauni(update: Update, context: CallbackContext):
+    text = """Представляем вам наш классический рецепт торта "Наполеон". Тончайшие слои хрустящего слоеного теста, приготовленного по традиционному рецепту, создают неповторимую текстуру. Нежный заварной крем пропитывает коржи и делает их еще нежнее. Идеально подходит для праздников, семейных торжеств и уютных домашних чаепитий.
+Примерное КБЖУ на 100 г:
+
+Калории: 360
+Белки: 6 г
+Жиры: 25 г
+Углеводы: 35 г
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+
+async def morkov(update: Update, context: CallbackContext):
+    text = """Побалуйте себя кусочком нашего восхитительного морковного торта, испеченного с любовью из самых свежих ингредиентов. Сочная мякоть моркови придает торту естественную сладость, которую идеально дополняет хруст грецких орехов. Пряный аромат корицы, имбиря и мускатного ореха окутает вас теплом и уютом. Нежный крем-чиз, тающий во рту, создает идеальный баланс вкусов и текстур. Каждый кусочек — это кусочек рая, который подарит вам истинное наслаждение.
+Примерное КБЖУ:
+
+Калорийность: 450 ккал
+Белки: 10 г
+Жиры: 25 г
+Углеводы: 55 г
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def napoleon(update: Update, context: CallbackContext):
+    text = """Представляем вам наш фирменный рецепт торта "Брауни", приготовленный из лучших сортов шоколада и отборных какао-бобов. Мягкая, слегка влажная текстура брауни достигается благодаря идеальному балансу муки, сахара и яиц. 
+Идеально подходит для любителей шоколада, праздников и уютных домашних посиделок.
+Примерное КБЖУ на 100 г:
+
+Калории: 380
+Белки: 7 г
+Жиры: 28 г
+Углеводы: 35 г
+
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def kruass(update: Update, context: CallbackContext):
+    text = """С каждым укусом вы будете наслаждаться симфонией текстур и вкусов. Хрустящая корочка тает во рту, уступая место мягкой, воздушной мякоти, пропитанной молочным шоколадом. Это идеальный утренний деликатес или сладкое угощение в любое время дня.
+Примерное КБЖУ:
+
+Калорийность: 400 ккал
+Белки: 12 г
+Жиры: 20 г
+Углеводы: 45 г
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+async def bulk(update: Update, context: CallbackContext):
+    text = """Побалуйте себя аппетитными булочками с корицей. Пышная, нежная сдоба в сочетании с сахаром и корицей, создает идеальный баланс сладости и пряности. С первым укусом вы окунетесь в облако тепла и уюта, которое согреет ваше сердце и душу.
+Примерное КБЖУ:
+
+Калорийность: 350 ккал
+Белки: 10 г
+Жиры: 18 г
+Углеводы: 45 г
+
+
+"""
+    await context.bot.send_message(update.effective_chat.id, text)
+
+
+# Обработка корзины 
+async def add_to_cart(update: Update, context: CallbackContext):
+    item = update.message.text
+    if item == "Парижский багет":
+        await parisian_baguette_description(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Кукурузный батон":
+        await baton(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Чиабатта":
+        await chib(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Лук-яйцо":
+        await luk_egg(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Картошка":
+        await potatoes(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Капуста":
+        await kapusta(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Мясо":
+        await meet(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Красный бархат":
+        await kr_b(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Брауни":
+        await brauni(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Морковный":
+        await morkov(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Наполеон":
+        await napoleon(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Круассан с шоколадом":
+        await kruass(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    if item == "Булочка с корицей":
+        await bulk(update, context)
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    else:
+        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
+    await context.bot.send_message(update.effective_chat.id, "Хотите добавить ещё что-нибудь? (Да/Нет)")
+    return PREORDER
+
+
+async def preorder(update: Update, context: CallbackContext):
     if update.message.text.lower() == "да":
-        await context.bot.send_message(update.effective_chat.id, "Добавьте товар в корзину, начиная сообщение с 'Закажи'.")    
+        await context.bot.send_message(update.effective_chat.id, "Выберите другую категорию или товар.")
+        return CATEGORY # Возвращаем пользователя к выбору категории
     else:
         await context.bot.send_message(update.effective_chat.id, "Спасибо за заказ!")
     return ConversationHandler.END
 
+
 # Создаем ConversationHandler для обработки разговоров
-async def wake_up(update, context):
+async def wake_up(update: Update, context: CallbackContext):
     chat = update.effective_chat
     name = update.message.chat.first_name
     button = ReplyKeyboardMarkup([['/menu']], resize_keyboard=True)
-
     await context.bot.send_message(
         chat_id=chat.id,
         text=f'Добро пожаловать, {name}.',
@@ -103,29 +316,17 @@ async def wake_up(update, context):
     menu = await get_menu()
     await context.bot.send_message(chat.id, menu)
 
-# Создаем обработчики разговоров
+
 conv_handler = ConversationHandler(
-    entry_points=[MessageHandler(filters.Regex('^Добавить товар$'), add_to_cart)],
+    entry_points=[CommandHandler('menu', show_menu)],
     states={
-        ADD_TO_CART: [
-            MessageHandler(filters.TEXT & filters.Regex("Да"), add_to_cart),
-            MessageHandler(filters.TEXT & filters.Regex("Нет"), add_to_cart)
-        ],
-        CATEGORY: [
-            MessageHandler(filters.TEXT, select_category)
-        ]
+        CATEGORY: [MessageHandler(filters.TEXT & ~filters.COMMAND, select_category)],
+        ADD_TO_CART: [MessageHandler(filters.TEXT & ~filters.COMMAND, add_to_cart)],
+        PREORDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, preorder)]
     },
-    fallbacks=[CommandHandler('start', wake_up)]
+    fallbacks=[CommandHandler('cancel', wake_up)] #Добавил обработку команды /cancel для выхода из диалога.
 )
 
-# Главная асинхронная функция
-async def main():
-    application.add_handler(CommandHandler('start', wake_up))
-    application.add_handler(CommandHandler('menu', show_menu))
-    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, process_order))
-    application.add_handler(CommandHandler('bakery_info', bakery_info))
-    application.add_handler(CommandHandler('promotions', show_promotions))
-    application.add_handler(conv_handler)
-    await application.run_polling()
-
-asyncio.run(main())
+application.add_handler(conv_handler)
+application.add_handler(CommandHandler('start', wake_up))
+application.run_polling()
