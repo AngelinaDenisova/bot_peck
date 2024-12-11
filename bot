@@ -10,17 +10,8 @@ from telegram.ext import CommandHandler, Application, MessageHandler, filters, C
 nest_asyncio.apply()
 kitchen_chat_id = ""
 updater = application = Application.builder().token("7738234222:AAHj8fSK0k43C4BuWDnzVMJFBCLPKC-2GFQ").build()
-menu_url = 'https://practicumgrade.github.io/course-material/bakery-menu.json'
 PREORDER, CATEGORY, ADD_TO_CART = range(3)
 
-# Получить меню с категориями
-async def get_menu():
-    response = requests.get(menu_url)
-    response_json = response.json()
-    names = [position['name'] for position in response_json['positions']]
-    menu_prefix = 'Сегодня в меню: '
-    menu_names = ', '.join(names)
-    return menu_prefix + menu_names
 
 # Отображение основного меню с интерактивными кнопками
 async def show_menu(update: Update, context: CallbackContext):
@@ -74,7 +65,7 @@ async def select_category(update: Update, context: CallbackContext):
 
 # Информация о пекарне
 async def bakery_info(update: Update, context: CallbackContext):
-    info = "Пекарня: 'Лучшие булочки'\nАдрес: ул. Пекарская, 1\nРежим работы: 8:00 - 20:00\nКонтакт: +7 (123) 456-78-90"
+    info = "Пекарня: 'Ода вкуса'\nАдрес: ул. Трудовая, 12/3\nРежим работы: 8:00 - 20:00\nКонтакт: +7 (123) 456-78-90"
     await context.bot.send_message(update.effective_chat.id, info)
     return ConversationHandler.END
 
@@ -313,8 +304,7 @@ async def wake_up(update: Update, context: CallbackContext):
         text=f'Добро пожаловать, {name}.',
         reply_markup=button
     )
-    menu = await get_menu()
-    await context.bot.send_message(chat.id, menu)
+
 
 
 conv_handler = ConversationHandler(
@@ -330,3 +320,4 @@ conv_handler = ConversationHandler(
 application.add_handler(conv_handler)
 application.add_handler(CommandHandler('start', wake_up))
 application.run_polling()
+
