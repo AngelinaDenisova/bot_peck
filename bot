@@ -1,9 +1,10 @@
 import requests
 import datetime
 !pip install nest_asyncio
+!pip install mysql-connector-python
 import asyncio
 import nest_asyncio
-!pip install python-telegram-bot 
+!pip install python-telegram-bot
 from telegram import ReplyKeyboardMarkup, KeyboardButton, Update
 from telegram.ext import CommandHandler, Application, MessageHandler, filters, ConversationHandler, CallbackContext
 
@@ -55,13 +56,14 @@ async def select_category(update: Update, context: CallbackContext):
             await bakery_info(update, context)
         elif category == "Скидки":
             await show_promotions(update, context)
-        return ConversationHandler.END
+        # Возвращаемся в главное меню после отображения информации
+        await show_menu(update, context)
+        return CATEGORY
 
     reply_markup = ReplyKeyboardMarkup(buttons, resize_keyboard=True)
     await context.bot.send_message(update.effective_chat.id, f"Вы выбрали категорию: {category}.", reply_markup=reply_markup)
     await context.bot.send_message(update.effective_chat.id, "Какой именно продукт вы хотите заказать?")
     return ADD_TO_CART
-
 
 # Информация о пекарне
 async def bakery_info(update: Update, context: CallbackContext):
@@ -198,7 +200,7 @@ async def morkov(update: Update, context: CallbackContext):
     await context.bot.send_message(update.effective_chat.id, text)
 
 async def napoleon(update: Update, context: CallbackContext):
-    text = """Представляем вам наш фирменный рецепт торта "Брауни", приготовленный из лучших сортов шоколада и отборных какао-бобов. Мягкая, слегка влажная текстура брауни достигается благодаря идеальному балансу муки, сахара и яиц. 
+    text = """Представляем вам наш фирменный рецепт торта "Брауни", приготовленный из лучших сортов шоколада и отборных какао-бобов. Мягкая, слегка влажная текстура брауни достигается благодаря идеальному балансу муки, сахара и яиц.
 Идеально подходит для любителей шоколада, праздников и уютных домашних посиделок.
 Примерное КБЖУ на 100 г:
 
@@ -237,7 +239,7 @@ async def bulk(update: Update, context: CallbackContext):
     await context.bot.send_message(update.effective_chat.id, text)
 
 
-# Обработка корзины 
+# Обработка корзины
 async def add_to_cart(update: Update, context: CallbackContext):
     item = update.message.text
     if item == "Парижский багет":
@@ -279,8 +281,6 @@ async def add_to_cart(update: Update, context: CallbackContext):
     if item == "Булочка с корицей":
         await bulk(update, context)
         await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
-    else:
-        await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
     await context.bot.send_message(update.effective_chat.id, "Хотите добавить ещё что-нибудь? (Да/Нет)")
     return PREORDER
 
@@ -320,4 +320,5 @@ conv_handler = ConversationHandler(
 application.add_handler(conv_handler)
 application.add_handler(CommandHandler('start', wake_up))
 application.run_polling()
+
 
