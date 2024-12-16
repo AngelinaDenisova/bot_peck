@@ -1,4 +1,6 @@
+import sqlite3
 import requests
+import pandas as pd
 import datetime
 !pip install nest_asyncio
 !pip install mysql-connector-python
@@ -7,6 +9,34 @@ import nest_asyncio
 !pip install python-telegram-bot
 from telegram import ReplyKeyboardMarkup, KeyboardButton, Update
 from telegram.ext import CommandHandler, Application, MessageHandler, filters, ConversationHandler, CallbackContext
+
+# Подготовьте подключение к базе данных SQLite
+def db_connect():
+    conn = sqlite3.connect("bot.db")
+    return conn
+
+# Функция сохранения заказа в базе данных
+def save_order(users_id, product_name):
+    conn = db_connect()
+    cursor = conn.cursor()
+
+    # Replace with your actual table structure and columns
+    cursor.execute("INSERT INTO records (users_id, product) VALUES (?, ?)",
+                   (users_id, product_name))
+
+    conn.commit()
+    conn.close()
+
+"""def pand():
+  conn = sqlite3.connect("bot.db")
+  cursor = conn.cursor()
+  sql  = "SELECT users_id, product"
+  cursor.execute(sql)
+  # Загружаем все результаты в список списков rows
+  rows = cursor.fetchall()
+  cursor.close()
+  conn.close()
+  return pd.DataFrame( rows, columns=('Имя пользователя', 'Продукт') )"""
 
 nest_asyncio.apply()
 kitchen_chat_id = ""
@@ -241,7 +271,16 @@ async def bulk(update: Update, context: CallbackContext):
 
 # Обработка корзины
 async def add_to_cart(update: Update, context: CallbackContext):
-    item = update.message.text
+  product = update.message.text
+  users_id = update.effective_chat.id
+
+    # Сохраните заказ в базе данных
+  save_order(users_id, product)
+
+  await context.bot.send_message(update.effective_chat.id, f"Вы заказали: {product}.")
+  return ConversationHandler.END
+
+  """item = update.message.text
     if item == "Парижский багет":
         await parisian_baguette_description(update, context)
         await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
@@ -282,8 +321,7 @@ async def add_to_cart(update: Update, context: CallbackContext):
         await bulk(update, context)
         await context.bot.send_message(update.effective_chat.id, f"Вы добавили в корзину: {item}")
     await context.bot.send_message(update.effective_chat.id, "Хотите добавить ещё что-нибудь? (Да/Нет)")
-    return PREORDER
-
+    return PREORDER"""
 
 async def preorder(update: Update, context: CallbackContext):
     if update.message.text.lower() == "да":
@@ -320,5 +358,3 @@ conv_handler = ConversationHandler(
 application.add_handler(conv_handler)
 application.add_handler(CommandHandler('start', wake_up))
 application.run_polling()
-
-
